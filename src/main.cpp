@@ -10,17 +10,15 @@
  * You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-#include <Arduino.h>
+#include <M5StickC.h>
 #include <IotWebConf.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <ESPmDNS.h>
 #include <ArduinoJson.h>
-#include <WS2812FX.h>
 #include <EEPROM.h>
 #include "FS.h"
 #include "SPIFFS.h"
-#include "ESP32_RMT_Driver.h"
 
 
 // Tool to get certs: https://projects.petrucci.ch/esp32/
@@ -106,7 +104,7 @@ const char* rootCACertificateGraph = \
 #define DEFAULT_ERROR_RETRY_INTERVAL 30			// Default interval to try again after errors
 #define TOKEN_REFRESH_TIMEOUT 60	 			// Number of seconds until expiration before token gets refreshed
 #define CONTEXT_FILE "/context.json"			// Filename of the context file
-#define VERSION "0.14.0"						// Version of the software
+#define VERSION "0.1.0"							// Version of the software
 
 #define DBG_PRINT(x) Serial.print(x)
 #define DBG_PRINTLN(x) Serial.println(x)
@@ -141,9 +139,7 @@ byte lastIotWebConfState;
 // HTTP client
 WiFiClientSecure client;
 
-// WS2812FX
-WS2812FX ws2812fx = WS2812FX(NUMLEDS, DATAPIN, NEO_GRB + NEO_KHZ800);
-int numberLeds;
+
 
 // OTA update
 HTTPUpdateServer httpUpdater;
@@ -283,55 +279,62 @@ void startMDNS() {
 #include "request_handler.h"
 #include "spiffs_webserver.h"
 
+int ledPin = 10;
+// http://www.barth-dev.de/online/rgb565-color-picker/
+#define GRAY  0x0020 //   8  8  8
+//#define GREEN 0x0200 //   0 64  0
+#define GREEN1 0x07E0 //   0 255  0
+#define RED   0xF800 // 255  0  0
+#define RED1 0xF809
+//#define PINK 0xF81E
+#define BLUE 0x001F
+#define BLACK 0x0000
+#define WHITE 0xFFFF
 
-// Neopixel control
-void setAnimation(uint8_t segment, uint8_t mode = FX_MODE_STATIC, uint32_t color = RED, uint16_t speed = 3000, bool reverse = false) {
-	uint16_t startLed, endLed = 0;
-
-	// Support only one segment for the moment
-	if (segment == 0) {
-		startLed = 0;
-		endLed = numberLeds;
-	}
-	Serial.printf("setAnimation: %d, %d-%d, Mode: %d, Color: %d, Speed: %d\n", segment, startLed, endLed, mode, color, speed);
-	ws2812fx.setSegment(segment, startLed, endLed, mode, color, speed, reverse);
+void drawLabel(unsigned long int screenColor, unsigned long int labelColor, bool ledValue, String string) {
+	digitalWrite(ledPin, ledValue);
+	M5.Lcd.fillScreen(screenColor);
+	M5.Lcd.setTextColor(labelColor, screenColor);
+	M5.Lcd.setTextSize(3);
+	M5.Lcd.printf(" Status:\n %s", string.c_str());
+	Serial.printf("String: %s; LED: %i \n", string.c_str(), ledValue);
 }
 
 void setPresenceAnimation() {
 	// Activity: Available, Away, BeRightBack, Busy, DoNotDisturb, InACall, InAConferenceCall, Inactive, InAMeeting, Offline, OffWork, OutOfOffice, PresenceUnknown, Presenting, UrgentInterruptionsOnly
 
 	if (activity.equals("Available")) {
-		setAnimation(0, FX_MODE_STATIC, GREEN);
+		drawLabel(GREEN, WHITE, HIGH, "available");
 	}
 	if (activity.equals("Away")) {
-		setAnimation(0, FX_MODE_STATIC, YELLOW);
+		drawLabel(GRAY, WHITE, HIGH, "AFK");
 	}
 	if (activity.equals("BeRightBack")) {
-		setAnimation(0, FX_MODE_STATIC, ORANGE);
+		drawLabel(GRAY, WHITE, HIGH, "BRB");
 	}
 	if (activity.equals("Busy")) {
-		setAnimation(0, FX_MODE_STATIC, PURPLE);
+		drawLabel(RED1, WHITE, HIGH, "busy");
 	}
 	if (activity.equals("DoNotDisturb") || activity.equals("UrgentInterruptionsOnly")) {
-		setAnimation(0, FX_MODE_STATIC, PINK);
+		drawLabel(PINK, WHITE, LOW, "do not disturb");
 	}
 	if (activity.equals("InACall")) {
-		setAnimation(0, FX_MODE_BREATH, RED);
+		drawLabel(PINK, WHITE, LOW, "in a call");
 	}
 	if (activity.equals("InAConferenceCall")) {
-		setAnimation(0, FX_MODE_BREATH, RED, 9000);
+		drawLabel(PINK, WHITE, LOW, "in a conf call");
 	}
 	if (activity.equals("Inactive")) {
-		setAnimation(0, FX_MODE_BREATH, WHITE);
+		drawLabel(GRAY, WHITE, HIGH, "inactive");
 	}
 	if (activity.equals("InAMeeting")) {
-		setAnimation(0, FX_MODE_SCAN, RED);
+		drawLabel(RED1, WHITE, HIGH, "in a meeting");
 	}	
 	if (activity.equals("Offline") || activity.equals("OffWork") || activity.equals("OutOfOffice") || activity.equals("PresenceUnknown")) {
-		setAnimation(0, FX_MODE_STATIC, BLACK);
+		drawLabel(GRAY, WHITE, HIGH, "offline");
 	}
 	if (activity.equals("Presenting")) {
-		setAnimation(0, FX_MODE_COLOR_WIPE, RED);
+		drawLabel(RED, WHITE, LOW, "presenting");
 	}
 }
 
@@ -462,7 +465,7 @@ void statemachine() {
 	if (iotWebConfState != lastIotWebConfState) {
 		if (iotWebConfState == IOTWEBCONF_STATE_NOT_CONFIGURED || iotWebConfState == IOTWEBCONF_STATE_AP_MODE) {
 			DBG_PRINTLN(F("Detected AP mode"));
-			setAnimation(0, FX_MODE_THEATER_CHASE, WHITE);
+			//drawLabel(GREEN, GRAY, HIGH, "");
 		}
 		if (iotWebConfState == IOTWEBCONF_STATE_CONNECTING) {
 			DBG_PRINTLN(F("WiFi connecting"));
@@ -473,13 +476,13 @@ void statemachine() {
 
 	// Statemachine: Wifi connection start
 	if (state == SMODEWIFICONNECTING && laststate != SMODEWIFICONNECTING) {
-		setAnimation(0, FX_MODE_THEATER_CHASE, BLUE);
+		//drawLabel(GRAY, GREEN, HIGH, "");
 	}
 
 	// Statemachine: After wifi is connected
 	if (state == SMODEWIFICONNECTED && laststate != SMODEWIFICONNECTED)
 	{
-		setAnimation(0, FX_MODE_THEATER_CHASE, GREEN);
+		//drawLabel(GREEN, GRAY, HIGH, "");
 		startMDNS();
 		loadContext();
 		// WiFi client
@@ -489,7 +492,7 @@ void statemachine() {
 	// Statemachine: Devicelogin started
 	if (state == SMODEDEVICELOGINSTARTED) {
 		if (laststate != SMODEDEVICELOGINSTARTED) {
-			setAnimation(0, FX_MODE_THEATER_CHASE, PURPLE);
+			//drawLabel(GRAY, GREEN, HIGH, "");
 		}
 		if (millis() >= tsPolling) {
 			pollForToken();
@@ -528,7 +531,7 @@ void statemachine() {
 	// Statemachine: Refresh token
 	if (state == SMODEREFRESHTOKEN) {
 		if (laststate != SMODEREFRESHTOKEN) {
-			setAnimation(0, FX_MODE_THEATER_CHASE, RED);
+			//drawLabel(GREEN, GRAY, HIGH, "");
 		}
 		if (millis() >= tsPolling) {
 			boolean success = refreshToken();
@@ -562,25 +565,6 @@ void statemachine() {
 
 
 /**
- * Multicore
- */
-void neopixelTask(void * parameter) {
-	for (;;) {
-		ws2812fx.service();
-		vTaskDelay(10);
-	}
-}
-
-void customShow(void) {
-	uint8_t *pixels = ws2812fx.getPixels();
-	// numBytes is one more then the size of the ws2812fx's *pixels array.
-	// the extra byte is used by the driver to insert the LED reset pulse at the end.
-	uint16_t numBytes = ws2812fx.getNumBytes() + 1;
-	rmt_write_sample(RMT_CHANNEL_0, pixels, numBytes, false); // channel 0
-}
-
-
-/**
  * Main functions
  */
 void setup()
@@ -590,11 +574,6 @@ void setup()
 	DBG_PRINTLN(F("setup() Starting up..."));
 	// Serial.setDebugOutput(true);
 
-	// WS2812FX
-	ws2812fx.init();
-	rmt_tx_int(RMT_CHANNEL_0, ws2812fx.getPin());
-	ws2812fx.start();
-	setAnimation(0, FX_MODE_STATIC, WHITE);
 
 	// iotWebConf - Initializing the configuration.
 	#ifdef LED_BUILTIN
@@ -614,15 +593,6 @@ void setup()
 	iotWebConf.setupUpdateServer(&httpUpdater);
 	iotWebConf.skipApStartup();
 	iotWebConf.init();
-
-	// WS2812FX
-	numberLeds = atoi(paramNumLedsValue);
-	if (numberLeds < 1) {
-		DBG_PRINTLN(F("Number of LEDs not given, using 16."));
-		numberLeds = NUMLEDS;
-	}
-	ws2812fx.setLength(numberLeds);
-	ws2812fx.setCustomShow(customShow);
 
 	// HTTP server - Set up required URL handlers on the web server.
 	server.on("/", HTTP_GET, handleRoot);
@@ -655,15 +625,18 @@ void setup()
         return;
     }
 
-	// Pin neopixel logic to core 0
-	xTaskCreatePinnedToCore(
-		neopixelTask,
-		"Neopixels",
-		1000,
-		NULL,
-		1,
-		&TaskNeopixel,
-		0);
+	// initialize the M5StickC object
+	M5.begin();
+	
+	pinMode(ledPin, OUTPUT);  // LED: 1 is on Program (Tally)
+ 	digitalWrite(ledPin, HIGH); // off
+	
+	// ScreenRotation values:
+	// 1 = Button right
+	// 2 = Button above
+	// 3 = Button left
+	// 4 = Button below
+	M5.Lcd.setRotation(1);
 }
 
 void loop()
