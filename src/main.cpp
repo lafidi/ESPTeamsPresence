@@ -128,12 +128,10 @@ IotWebConf iotWebConf(thingName, &dnsServer, &server, wifiInitialApPassword);
 char paramClientIdValue[STRING_LEN];
 char paramTenantValue[STRING_LEN];
 char paramPollIntervalValue[INTEGER_LEN];
-char paramNumLedsValue[INTEGER_LEN];
 IotWebConfSeparator separator = IotWebConfSeparator();
 IotWebConfParameter paramClientId = IotWebConfParameter("Client-ID (Generic ID: 3837bbf0-30fb-47ad-bce8-f460ba9880c3)", "clientId", paramClientIdValue, STRING_LEN, "text", "e.g. 3837bbf0-30fb-47ad-bce8-f460ba9880c3", "3837bbf0-30fb-47ad-bce8-f460ba9880c3");
 IotWebConfParameter paramTenant = IotWebConfParameter("Tenant hostname / ID", "tenantId", paramTenantValue, STRING_LEN, "text", "e.g. contoso.onmicrosoft.com");
 IotWebConfParameter paramPollInterval = IotWebConfParameter("Presence polling interval (sec) (default: 30)", "pollInterval", paramPollIntervalValue, INTEGER_LEN, "number", "10..300", DEFAULT_POLLING_PRESENCE_INTERVAL, "min='10' max='300' step='5'");
-IotWebConfParameter paramNumLeds = IotWebConfParameter("Number of LEDs (default: 16)", "numLeds", paramNumLedsValue, INTEGER_LEN, "number", "1..500", "16", "min='1' max='500' step='1'");
 byte lastIotWebConfState;
 
 // HTTP client
@@ -293,6 +291,7 @@ int ledPin = 10;
 
 void drawLabel(unsigned long int screenColor, unsigned long int labelColor, bool ledValue, String string) {
 	digitalWrite(ledPin, ledValue);
+	M5.Lcd.setCursor(0,0);
 	M5.Lcd.fillScreen(screenColor);
 	M5.Lcd.setTextColor(labelColor, screenColor);
 	M5.Lcd.setTextSize(3);
@@ -584,7 +583,6 @@ void setup()
 	iotWebConf.addParameter(&paramClientId);
 	iotWebConf.addParameter(&paramTenant);
 	iotWebConf.addParameter(&paramPollInterval);
-	iotWebConf.addParameter(&paramNumLeds);
 	// iotWebConf.setFormValidator(&formValidator);
 	// iotWebConf.getApTimeoutParameter()->visible = true;
 	// iotWebConf.getApTimeoutParameter()->defaultValue = "10";

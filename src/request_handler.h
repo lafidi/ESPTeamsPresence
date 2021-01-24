@@ -165,7 +165,6 @@ void handleRoot() {
 	s += "<div class=\"nes-field mt-s\"><label for=\"name_field\">Client-ID</label><input type=\"text\" id=\"name_field\" class=\"nes-input\" disabled value=\"" + String(paramClientIdValue) +  "\"></div>";
 	s += "<div class=\"nes-field mt-s\"><label for=\"name_field\">Tenant hostname / ID</label><input type=\"text\" id=\"name_field\" class=\"nes-input\" disabled value=\"" + String(paramTenantValue) +  "\"></div>";
 	s += "<div class=\"nes-field mt-s\"><label for=\"name_field\">Polling interval (sec)</label><input type=\"text\" id=\"name_field\" class=\"nes-input\" disabled value=\"" + String(paramPollIntervalValue) +  "\"></div>";
-	s += "<div class=\"nes-field mt-s\"><label for=\"name_field\">Number of LEDs</label><input type=\"text\" id=\"name_field\" class=\"nes-input\" disabled value=\"" + String(paramNumLedsValue) +  "\"></div>";
 	s += "</section>";
 
 	s += "<section class=\"nes-container with-title mt\"><h3 class=\"title\">Memory usage</h3>";
@@ -202,7 +201,6 @@ void handleGetSettings() {
 	responseDoc["client_id"].set(paramClientIdValue);
 	responseDoc["tenant"].set(paramTenantValue);
 	responseDoc["poll_interval"].set(paramPollIntervalValue);
-	responseDoc["num_leds"].set(paramNumLedsValue);
 
 	responseDoc["heap"].set(ESP.getFreeHeap());
 	responseDoc["min_heap"].set(ESP.getMinFreeHeap());
@@ -258,13 +256,6 @@ boolean formValidator() {
 		valid = false;
 	}
 
-	int l4 = server.arg(paramNumLeds.getId()).length();
-	if (l4 < 1)
-	{
-		paramNumLeds.errorMessage = "Please provide a value for the number of LEDs!";
-		valid = false;
-	}
-
 	return valid;
 }
 
@@ -280,7 +271,7 @@ void handleStartDevicelogin() {
 		DBG_PRINTLN(F("handleStartDevicelogin()"));
 
 		// Request devicelogin context
-		const size_t capacity = JSON_OBJECT_SIZE(6) + 540;
+		const size_t capacity = JSON_OBJECT_SIZE(6) + 10000;
 		DynamicJsonDocument doc(capacity);
 		boolean res = requestJsonApi(doc, "https://login.microsoftonline.com/" + String(paramTenantValue) + "/oauth2/v2.0/devicecode", "client_id=" + String(paramClientIdValue) + "&scope=offline_access%20openid%20Presence.Read", capacity);
 
